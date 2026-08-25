@@ -32,7 +32,7 @@ Install using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
     "abdelwahab-7/nvim-jupyter",
-    ft = { "jupyter" },
+    lazy = false, -- Must be false so BufReadCmd can intercept .ipynb files on open
     dependencies = {
         "3rd/image.nvim", -- Optional for inline images
     },
