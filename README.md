@@ -21,7 +21,7 @@ An interactive, fully-featured Jupyter Notebook client for Neovim. Edit `.ipynb`
 
 - **Neovim** 0.10+
 - **Python 3**
-- `pip install jupyter_client pandas tabulate`
+- `pip install jupyter_client tabulate`
 - **ImageMagick** (Required for cropping and scaling plots)
 - [image.nvim](https://github.com/3rd/image.nvim) (Optional, but highly recommended for inline graphics)
 
@@ -31,7 +31,7 @@ Install using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-    "your-username/nvim-jupyter",
+    "abdelwahab-7/nvim-jupyter",
     ft = { "jupyter" },
     dependencies = {
         "3rd/image.nvim", -- Optional for inline images
