@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+bin/
+lib/
+include/
+pyvenv.cfg
+.DS_Store
+*.ipynb
+*.csv
+*.lua
+!lua/**/*.lua
+!plugin/**/*.lua
