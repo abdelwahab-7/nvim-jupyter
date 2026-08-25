@@ -3,6 +3,7 @@ local M = {}
 -- Main setup function that the user can call in their init.lua
 function M.setup(opts)
     opts = opts or {}
+    require("nvim_jupyter.config").setup(opts)
     require("nvim_jupyter.core").setup()
     require("nvim_jupyter.ipynb").setup()
     require("nvim_jupyter.ui").setup()
