@@ -266,9 +266,22 @@ function M.toggle_output_visibility()
         local ok, api = pcall(require, "image")
         if ok then
             for _, img in ipairs(api.get_images({buffer = buf}) or {}) do
-                if img.geometry and img.geometry.y >= start_line and img.geometry.y <= out_end then
-                    table.insert(hidden_images, { filepath = img.id, y_offset = img.geometry.y - start_line })
-                    img:clear()
+                local y = -1
+                if img.geometry and type(img.geometry.y) == "number" then y = img.geometry.y end
+                if type(img.has_extmark_moved) == "function" then
+                    local moved, row, _ = img:has_extmark_moved()
+                    if moved and type(row) == "number" then 
+                        y = row 
+                    elseif img.extmark and type(img.extmark.row) == "number" then 
+                        y = img.extmark.row 
+                    end
+                end
+                
+                if y >= start_line and y <= out_end then
+                    table.insert(hidden_images, { filepath = img.id, y_offset = y - start_line })
+                    pcall(function() img:clear() end)
+                    img.buffer = -1 -- Orphan it to prevent re-rendering
+                    img.window = -1
                 end
             end
         end
@@ -338,9 +351,22 @@ function M.toggle_output_visibility()
         local ok, api = pcall(require, "image")
         if ok then
             for _, img in ipairs(api.get_images({buffer = buf}) or {}) do
-                if img.geometry and img.geometry.y >= out_start and img.geometry.y <= out_end then
-                    table.insert(hidden_images, { filepath = img.id, y_offset = img.geometry.y - out_start })
-                    img:clear()
+                local y = -1
+                if img.geometry and type(img.geometry.y) == "number" then y = img.geometry.y end
+                if type(img.has_extmark_moved) == "function" then
+                    local moved, row, _ = img:has_extmark_moved()
+                    if moved and type(row) == "number" then 
+                        y = row 
+                    elseif img.extmark and type(img.extmark.row) == "number" then 
+                        y = img.extmark.row 
+                    end
+                end
+                
+                if y >= out_start and y <= out_end then
+                    table.insert(hidden_images, { filepath = img.id, y_offset = y - out_start })
+                    pcall(function() img:clear() end)
+                    img.buffer = -1 -- Orphan it to prevent re-rendering
+                    img.window = -1
                 end
             end
         end
