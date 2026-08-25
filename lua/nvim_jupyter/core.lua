@@ -262,10 +262,21 @@ function M.toggle_output_visibility()
             out_end = i
         end
         
+        local hidden_images = {}
+        local ok, api = pcall(require, "image")
+        if ok then
+            for _, img in ipairs(api.get_images({buffer = buf}) or {}) do
+                if img.geometry and img.geometry.y >= start_line and img.geometry.y <= out_end then
+                    table.insert(hidden_images, { filepath = img.id, y_offset = img.geometry.y - start_line })
+                    img:clear()
+                end
+            end
+        end
+        
         local hidden_lines = vim.api.nvim_buf_get_lines(buf, start_line, out_end + 1, false)
         local id = vim.api.nvim_buf_set_extmark(buf, hidden_ns, parent_start, 0, {})
         local ho = vim.b[buf].hidden_outputs
-        ho[id] = hidden_lines
+        ho[id] = { lines = hidden_lines, images = hidden_images }
         vim.b[buf].hidden_outputs = ho
         
         utils.set_lines_no_undo(buf, start_line, out_end + 1, false, {})
@@ -278,12 +289,35 @@ function M.toggle_output_visibility()
     if #marks > 0 then
         local id = marks[1][1]
         local ho = vim.b[buf].hidden_outputs
-        local hidden_lines = ho[id]
-        if hidden_lines then
-            utils.set_lines_no_undo(buf, end_line + 1, end_line + 1, false, hidden_lines)
+        local hidden_data = ho[id]
+        if hidden_data then
+            local lines = hidden_data.lines or hidden_data
+            utils.set_lines_no_undo(buf, end_line + 1, end_line + 1, false, lines)
             vim.api.nvim_buf_del_extmark(buf, hidden_ns, id)
             ho[id] = nil
             vim.b[buf].hidden_outputs = ho
+            
+            if hidden_data.images then
+                local ok, api = pcall(require, "image")
+                if ok then
+                    local win = vim.fn.bufwinid(buf)
+                    for _, img_data in ipairs(hidden_data.images) do
+                        local y_pos = end_line + 1 + img_data.y_offset
+                        local created, image = pcall(api.from_file, img_data.filepath, {
+                            id = img_data.filepath,
+                            window = win,
+                            buffer = buf,
+                            with_virtual_padding = false,
+                            inline = true,
+                            x = 1,
+                            y = y_pos,
+                            max_width_window_percentage = 90,
+                            max_height_window_percentage = 60,
+                        })
+                        if created and image and image.render then image:render() end
+                    end
+                end
+            end
         end
         return
     end
@@ -300,10 +334,21 @@ function M.toggle_output_visibility()
             out_end = i
         end
         
+        local hidden_images = {}
+        local ok, api = pcall(require, "image")
+        if ok then
+            for _, img in ipairs(api.get_images({buffer = buf}) or {}) do
+                if img.geometry and img.geometry.y >= out_start and img.geometry.y <= out_end then
+                    table.insert(hidden_images, { filepath = img.id, y_offset = img.geometry.y - out_start })
+                    img:clear()
+                end
+            end
+        end
+        
         local hidden_lines = vim.api.nvim_buf_get_lines(buf, out_start, out_end + 1, false)
         local id = vim.api.nvim_buf_set_extmark(buf, hidden_ns, start_line, 0, {})
         local ho = vim.b[buf].hidden_outputs
-        ho[id] = hidden_lines
+        ho[id] = { lines = hidden_lines, images = hidden_images }
         vim.b[buf].hidden_outputs = ho
         
         utils.set_lines_no_undo(buf, out_start, out_end + 1, false, {})
