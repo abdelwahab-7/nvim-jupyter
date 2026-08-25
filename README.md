@@ -5,6 +5,8 @@ An interactive, fully-featured Jupyter Notebook client for Neovim. Edit `.ipynb`
 ![Neovim Version](https://img.shields.io/badge/Neovim-0.10+-blueviolet.svg)
 ![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)
 
+![Demo of nvim-jupyter](demo.gif)
+
 ---
 
 ## ⚡ Features
