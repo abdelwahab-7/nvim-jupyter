@@ -79,7 +79,32 @@ require("nvim_jupyter").setup({
 
 Simply open a `.ipynb` file in Neovim. The background Python kernel will start automatically.
 
-- Press `<leader>rc` inside a cell to execute it.
-- Press `<Esc>` to toggle between **Global Layout View** (navigating cells) and **Local Edit Mode** (editing code inside a cell).
+### Navigation & Modes
+The plugin features two primary modes when editing a `.ipynb` file, which you can toggle by pressing `<Esc>`.
+
+#### 1. Global Normal Mode
+*This is the default mode for safely navigating between cells without accidentally modifying them.*
+- **`j` / `k`**: Jump to the next or previous cell block.
+- **`l`**: Toggle visibility of the current cell's output (hide/show output).
+- **`i` / `a`**: Disabled. This protects you from accidentally typing or messing up the notebook structure outside of code cells.
+
+#### 2. Local Edit Mode
+*This mode allows you to edit the code inside a specific cell.*
+- **`l`**: Works exactly like standard Vim motion (moves the cursor right).
+- **`i` / `a`**: Enters standard Insert Mode so you can write Python code.
+- **`<leader>rc`**: Run the current cell.
+
+### Sidebars (Undo Tree & Variable Explorers)
+The plugin comes with powerful sidebars for variables and undo history. Here is how you interact with them:
+
+- **Variable Explorers** (`<leader>ve` for global, `<leader>lv` for local):
+  - These are read-only sidebars displaying your variables. Standard Vim motions (like `j`, `k`, `h`, `l`) work as expected for moving around the list.
+- **Undo Trees** (`<leader>ut` for global, `<leader>lu` for local):
+  - **`j` / `k`**: Navigate up and down the history tree.
+  - **`l`**: Preview the code state for the selected history node.
+  - **`r`**: Restore the cell/notebook to the selected state.
+  - **`s`**: Toggle selection of a specific state.
+  - **`<CR>`**: Apply the selected state.
+  - **`q` or `<Esc>`**: Close the Undo Tree sidebar.
 
 Run `:checkhealth nvim_jupyter` to verify your installation!
