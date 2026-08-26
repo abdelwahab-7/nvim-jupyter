@@ -86,6 +86,7 @@ The plugin features two primary modes when editing a `.ipynb` file, which you ca
 *This is the default mode for safely navigating between cells without accidentally modifying them.*
 - **`j` / `k`**: Jump to the next or previous cell block.
 - **`l`**: Toggle visibility of the current cell's output (hide/show output).
+- **`dd`**: Delete the current cell block entirely.
 - **`i` / `a`**: Disabled. This protects you from accidentally typing or messing up the notebook structure outside of code cells.
 
 #### 2. Local Edit Mode
