@@ -47,7 +47,10 @@ class JupyterDaemon:
 
     async def start(self):
         logging.info("Starting kernel...")
-        await self.km.start_kernel()
+        await self.km.start_kernel(extra_arguments=[
+            "--IPKernelApp.iopub_msg_rate_limit=10000000000",
+            "--IPKernelApp.iopub_data_rate_limit=10000000000"
+        ])
         self.kc = self.km.client()
         self.kc.start_channels()
         logging.info("Kernel channels started.")
