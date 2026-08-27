@@ -848,12 +848,19 @@ function M.setup()
                             
                             local cursor = vim.api.nvim_win_get_cursor(0)
                             local line = cursor[1] - 1
+                            local function enforce_bounds(target_row)
+                                local max_col = string.len(vim.api.nvim_buf_get_lines(args.buf, target_row - 1, target_row, false)[1] or "")
+                                local col = math.min(cursor[2], max_col)
+                                -- Note: nvim_win_set_cursor uses 0-indexed column, but math.min safely keeps it within bounds.
+                                -- If line is empty, max_col is 0, so col is 0.
+                                pcall(vim.api.nvim_win_set_cursor, 0, {target_row, col})
+                            end
                             
                             -- Trap the cursor strictly inside the cell's code area
                             if line <= start_line then
-                                pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 2, cursor[2]})
+                                enforce_bounds(start_line + 2)
                             elseif line > end_line then
-                                pcall(vim.api.nvim_win_set_cursor, 0, {end_line + 1, cursor[2]})
+                                enforce_bounds(end_line + 1)
                             end
                             
                             -- Keep active cell tracked for UI highlights
@@ -870,6 +877,13 @@ function M.setup()
                     local count = vim.v.count1
                     return "<cmd>lua require('nvim_jupyter.core').jump_next_cell(" .. count .. ")<CR>"
                 end
+                if vim.b.jupyter_state == "local" and vim.b.jupyter_active_cell then
+                    local cell = vim.b.jupyter_active_cell
+                    local cursor = vim.api.nvim_win_get_cursor(0)
+                    if cursor[1] - 1 >= cell.end_line then
+                        return "<Ignore>"
+                    end
+                end
                 return "j"
             end, opts)
             
@@ -877,6 +891,13 @@ function M.setup()
                 if vim.b.jupyter_state == "global" then
                     local count = vim.v.count1
                     return "<cmd>lua require('nvim_jupyter.core').jump_prev_cell(" .. count .. ")<CR>"
+                end
+                if vim.b.jupyter_state == "local" and vim.b.jupyter_active_cell then
+                    local cell = vim.b.jupyter_active_cell
+                    local cursor = vim.api.nvim_win_get_cursor(0)
+                    if cursor[1] - 1 <= cell.start_line + 1 then
+                        return "<Ignore>"
+                    end
                 end
                 return "k"
             end, opts)
