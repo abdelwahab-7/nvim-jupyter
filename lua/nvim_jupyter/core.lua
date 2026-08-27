@@ -12,12 +12,16 @@ function M.get_current_cell_bounds(buf)
     local current_line = cursor[1] - 1
     
     local start_line = current_line
-    while start_line > 0 do
+    while start_line >= 0 do
         local line_text = vim.api.nvim_buf_get_lines(buf, start_line, start_line + 1, false)[1]
         if line_text and line_text:match("^# %%%%") then
             break
         end
         start_line = start_line - 1
+    end
+    
+    if start_line < 0 then
+        start_line = 0
     end
     
     local end_line = current_line
@@ -883,8 +887,14 @@ function M.setup()
                             end
                             
                             -- Trap the cursor strictly inside the cell's code area
-                            if line <= start_line then
-                                enforce_bounds(start_line + 2)
+                            local top_line_text = vim.api.nvim_buf_get_lines(args.buf, start_line, start_line + 1, false)[1]
+                            local top_code_line_idx = start_line
+                            if top_line_text and top_line_text:match("^# %%%%") then
+                                top_code_line_idx = start_line + 1
+                            end
+                            
+                            if line < top_code_line_idx then
+                                enforce_bounds(top_code_line_idx + 1)
                             elseif line > end_line then
                                 enforce_bounds(end_line + 1)
                             end
@@ -1001,17 +1011,29 @@ function M.setup()
             vim.keymap.set('n', '<CR>', function()
                 if vim.b.jupyter_state == "global" then
                     local buf, start_line, end_line = M.get_current_cell_bounds()
+                    local cursor = vim.api.nvim_win_get_cursor(0)
+                    local current_line = cursor[1] - 1
                     
                     if start_line == end_line then
-                        -- Cell is completely empty, protect it by inserting a blank line
+                        -- Cell is completely empty (no lines between borders), protect it by inserting a blank line
                         pcall(vim.api.nvim_buf_set_lines, buf, start_line + 1, start_line + 1, false, {""})
                         end_line = start_line + 1
                     end
                     
                     vim.b.jupyter_state = "local"
                     cell_tracker_id = vim.api.nvim_buf_set_extmark(buf, local_ns_id, start_line, 0, { id = 1 })
-                    -- Jump inside the cell to edit
-                    pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 2, 0})
+                    
+                    local top_line_text = vim.api.nvim_buf_get_lines(buf, start_line, start_line + 1, false)[1]
+                    local target_row = start_line + 1
+                    if top_line_text and top_line_text:match("^# %%%%") then
+                        target_row = start_line + 2
+                    end
+                    
+                    -- Jump inside the cell to edit ONLY if we are currently on/above the border, or if it was completely empty
+                    if current_line <= start_line or start_line == end_line - 1 then
+                        pcall(vim.api.nvim_win_set_cursor, 0, {target_row, 0})
+                    end
+                    
                     require("nvim_jupyter.ui").render_cells(args.buf)
                 end
             end, opts)
