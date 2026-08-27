@@ -157,8 +157,24 @@ except Exception:
                 bufnr = cell_data["bufnr"]
                 output_id = cell_data["output_id"]
 
+                if cell_data.get("truncated"):
+                    # Suppress further output messages if we already truncated
+                    if msg_type == 'status':
+                        state = content.get('execution_state')
+                        if state == 'idle':
+                            final_status = "error" if cell_data.get("has_error") else "success"
+                            self.send("status", {"cell_id": cell_id, "bufnr": bufnr, "status": final_status})
+                    continue
+
                 if msg_type == 'stream':
-                    self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": content['text']})
+                    text = content['text']
+                    lines = text.count('\n') + 1
+                    cell_data["lines_count"] += lines
+                    if cell_data["lines_count"] > 1000:
+                        cell_data["truncated"] = True
+                        self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": text[:1000] + "\n... [Output truncated for performance] ...\n"})
+                    else:
+                        self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": text})
                 elif msg_type == 'execute_result' or msg_type == 'display_data':
                     # Intercept Variable Explorer broadcasts
                     if 'application/vnd.nvim.variables+json' in content['data']:
@@ -273,7 +289,14 @@ except Exception:
             user_expr["nvim_local_vars"] = f"get_nvim_local_vars({var_names})"
             
         msg_id = self.kc.execute(code, user_expressions=user_expr)
-        self.msg_to_cell[msg_id] = {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "has_error": False}
+        self.msg_to_cell[msg_id] = {
+            "cell_id": cell_id, 
+            "bufnr": bufnr, 
+            "output_id": output_id, 
+            "has_error": False,
+            "lines_count": 0,
+            "truncated": False
+        }
 
     async def interrupt(self):
         if self.kc is not None:

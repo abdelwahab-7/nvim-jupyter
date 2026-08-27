@@ -898,26 +898,32 @@ function M.setup()
             -- Ignore loose 'd' commands in global mode to prevent accidental structural damage
             vim.keymap.set('n', 'd', ignore_insert("d"), opts)
             
-            -- Escape key toggles between Global and Local mode
+            -- Escape key returns to Global mode
             vim.keymap.set('n', '<Esc>', function()
                 if vim.b.jupyter_state == "local" then
                     vim.b.jupyter_state = "global"
                     local buf, start_line = M.get_current_cell_bounds()
-                    vim.api.nvim_win_set_cursor(0, {start_line + 1, 0})
+                    pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 1, 0})
                     require("nvim_jupyter.ui").render_cells(args.buf)
-                elseif vim.b.jupyter_state == "global" then
+                end
+            end, opts)
+
+            -- Enter key enters Local mode and insert mode
+            vim.keymap.set('n', '<CR>', function()
+                if vim.b.jupyter_state == "global" then
                     local buf, start_line, end_line = M.get_current_cell_bounds()
                     
                     if start_line == end_line then
                         -- Cell is completely empty, protect it by inserting a blank line
-                        vim.api.nvim_buf_set_lines(buf, start_line + 1, start_line + 1, false, {""})
+                        pcall(vim.api.nvim_buf_set_lines, buf, start_line + 1, start_line + 1, false, {""})
                         end_line = start_line + 1
                     end
                     
                     vim.b.jupyter_state = "local"
                     cell_tracker_id = vim.api.nvim_buf_set_extmark(buf, local_ns_id, start_line, 0, { id = 1 })
                     -- Jump inside the cell to edit
-                    vim.api.nvim_win_set_cursor(0, {start_line + 2, 0})
+                    pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 2, 0})
+                    require("nvim_jupyter.ui").render_cells(args.buf)
                 end
             end, opts)
         end,

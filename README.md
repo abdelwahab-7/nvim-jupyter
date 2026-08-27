@@ -80,10 +80,11 @@ require("nvim_jupyter").setup({
 Simply open a `.ipynb` file in Neovim. The background Python kernel will start automatically.
 
 ### Navigation & Modes
-The plugin features two primary modes when editing a `.ipynb` file, which you can toggle by pressing `<Esc>`.
+The plugin features two primary modes when editing a `.ipynb` file.
 
 #### 1. Global Normal Mode
 *This is the default mode for safely navigating between cells without accidentally modifying them.*
+- **`<CR>` (Enter)**: Enter Local Edit Mode (Normal Mode inside the cell).
 - **`j` / `k`**: Jump to the next or previous cell block.
 - **`l`**: Toggle visibility of the current cell's output (hide/show output).
 - **`dd`**: Delete the current cell block entirely.
@@ -91,7 +92,8 @@ The plugin features two primary modes when editing a `.ipynb` file, which you ca
 
 #### 2. Local Edit Mode
 *This mode allows you to edit the code inside a specific cell.*
-- **`l`**: Works exactly like standard Vim motion (moves the cursor right).
+- **`<Esc>`**: Exit Local Edit Mode and return to Global Normal Mode. (If you are in Insert Mode, the first `<Esc>` takes you to Local Normal Mode, and a second `<Esc>` returns you to Global Normal Mode).
+- **`h` / `l`**: Works exactly like standard Vim motion (moves the cursor right/left).
 - **`i` / `a`**: Enters standard Insert Mode so you can write Python code.
 - **`<leader>rc`**: Run the current cell.
 

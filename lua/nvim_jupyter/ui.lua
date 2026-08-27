@@ -41,6 +41,7 @@ vim.cmd([[
     highlight JupyterStatusError   guifg=#F38BA8 gui=bold
     
     highlight JupyterOutput        guifg=#A6ADC8 gui=NONE
+    highlight JupyterActiveCell    guibg=#2A2B3D
 ]])
 
 local spinners = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
@@ -262,6 +263,8 @@ function M.render_cells(bufnr)
                 vim.api.nvim_buf_set_extmark(bufnr, ns_id, l, 0, {
                     sign_text = "│ ",
                     sign_hl_group = hl,
+                    hl_group = is_active and "JupyterActiveCell" or nil,
+                    hl_eol = true,
                 })
             else
                 vim.api.nvim_buf_add_highlight(bufnr, ns_id, "JupyterOutput", l, 0, -1)

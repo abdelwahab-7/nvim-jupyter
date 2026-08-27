@@ -255,14 +255,12 @@ function M.write_ipynb(file_path, bufnr)
     
     local ok, json_str = pcall(vim.json.encode, nb)
     if not ok then
-        vim.notify("Failed to encode notebook to JSON", vim.log.levels.ERROR)
-        return
+        error("Nvim-Jupyter: Failed to encode notebook to JSON! File not saved.")
     end
     
     local f = io.open(file_path, "w")
     if not f then
-        vim.notify("Could not open file for writing: " .. file_path, vim.log.levels.ERROR)
-        return
+        error("Nvim-Jupyter: Could not open file for writing: " .. file_path)
     end
     f:write(json_str)
     f:close()
