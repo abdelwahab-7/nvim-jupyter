@@ -5,12 +5,34 @@ import logging
 import base64
 import os
 import uuid
+import threading
+import queue
 from jupyter_client.manager import AsyncKernelManager
 
 logging.basicConfig(filename='/tmp/nvim_jupyter_daemon.log', level=logging.DEBUG)
 
 IMAGE_DIR = "/tmp/nvim_jupyter_images"
 os.makedirs(IMAGE_DIR, exist_ok=True)
+
+class FileWriterThread(threading.Thread):
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.q = queue.Queue()
+        
+    def run(self):
+        while True:
+            item = self.q.get()
+            if item is None:
+                break
+            filepath, text = item
+            try:
+                with open(filepath, "a") as f:
+                    f.write(text)
+            except Exception:
+                pass
+
+file_writer = FileWriterThread()
+file_writer.start()
 
 async def read_stdin(q: asyncio.Queue):
     loop = asyncio.get_event_loop()
@@ -169,11 +191,7 @@ except Exception:
 
                 if msg_type == 'stream':
                     text = content['text']
-                    try:
-                        with open(f"/tmp/nvim_jupyter_output_{cell_id}.log", "a") as f:
-                            f.write(text)
-                    except Exception:
-                        pass
+                    file_writer.q.put((f"/tmp/nvim_jupyter_output_{cell_id}.log", text))
 
                 if cell_data.get("truncated"):
                     # Suppress further output messages to Neovim if we already truncated
