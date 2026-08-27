@@ -167,8 +167,16 @@ except Exception:
                 bufnr = cell_data["bufnr"]
                 output_id = cell_data["output_id"]
 
+                if msg_type == 'stream':
+                    text = content['text']
+                    try:
+                        with open(f"/tmp/nvim_jupyter_output_{cell_id}.log", "a") as f:
+                            f.write(text)
+                    except Exception:
+                        pass
+
                 if cell_data.get("truncated"):
-                    # Suppress further output messages if we already truncated
+                    # Suppress further output messages to Neovim if we already truncated
                     if msg_type == 'status':
                         state = content.get('execution_state')
                         if state == 'idle':
@@ -177,14 +185,6 @@ except Exception:
                     continue
 
                 if msg_type == 'stream':
-                    text = content['text']
-                    
-                    try:
-                        with open(f"/tmp/nvim_jupyter_output_{cell_id}.log", "a") as f:
-                            f.write(text)
-                    except Exception:
-                        pass
-                        
                     lines = text.count('\n') + 1
                     cell_data["lines_count"] += lines
                     if cell_data["lines_count"] > 1000:
