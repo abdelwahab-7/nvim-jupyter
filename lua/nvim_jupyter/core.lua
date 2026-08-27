@@ -821,6 +821,48 @@ function M.setup()
             vim.opt_local.foldmethod = "manual"
             vim.opt_local.wrap = false
             
+            vim.api.nvim_create_autocmd({"CursorMoved", "CursorMovedI"}, {
+                buffer = args.buf,
+                callback = function()
+                    if vim.b[args.buf].jupyter_state == "local" then
+                        local mark = vim.api.nvim_buf_get_extmark_by_id(args.buf, local_ns_id, 1, {})
+                        if mark and #mark > 0 then
+                            local start_line = mark[1]
+                            local end_line = start_line
+                            local total_lines = vim.api.nvim_buf_line_count(args.buf)
+                            
+                            -- Find end of cell dynamically
+                            while end_line < total_lines - 1 do
+                                local line_text = vim.api.nvim_buf_get_lines(args.buf, end_line + 1, end_line + 2, false)[1]
+                                if line_text and line_text:match("^# %%%%") then
+                                    break
+                                end
+                                end_line = end_line + 1
+                            end
+                            
+                            -- If cell is emptied (no blank lines between markers), inject one standalone line
+                            if start_line == end_line then
+                                pcall(vim.api.nvim_buf_set_lines, args.buf, start_line + 1, start_line + 1, false, {""})
+                                end_line = start_line + 1
+                            end
+                            
+                            local cursor = vim.api.nvim_win_get_cursor(0)
+                            local line = cursor[1] - 1
+                            
+                            -- Trap the cursor strictly inside the cell's code area
+                            if line <= start_line then
+                                pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 2, cursor[2]})
+                            elseif line > end_line then
+                                pcall(vim.api.nvim_win_set_cursor, 0, {end_line + 1, cursor[2]})
+                            end
+                            
+                            -- Keep active cell tracked for UI highlights
+                            vim.b[args.buf].jupyter_active_cell = { start_line = start_line, end_line = end_line }
+                        end
+                    end
+                end,
+            })
+            
             local opts = { expr = true, buffer = args.buf, silent = true }
             
             vim.keymap.set('n', 'j', function()
