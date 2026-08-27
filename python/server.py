@@ -168,11 +168,18 @@ except Exception:
 
                 if msg_type == 'stream':
                     text = content['text']
+                    
+                    try:
+                        with open(f"/tmp/nvim_jupyter_output_{cell_id}.log", "a") as f:
+                            f.write(text)
+                    except Exception:
+                        pass
+                        
                     lines = text.count('\n') + 1
                     cell_data["lines_count"] += lines
                     if cell_data["lines_count"] > 1000:
                         cell_data["truncated"] = True
-                        self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": text[:1000] + "\n... [Output truncated for performance] ...\n"})
+                        self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": text[:1000] + "\n... [Output truncated. Press <leader>vo to open full output] ...\n"})
                     else:
                         self.send("output", {"cell_id": cell_id, "bufnr": bufnr, "output_id": output_id, "type": "stream", "text": text})
                 elif msg_type == 'execute_result' or msg_type == 'display_data':
@@ -257,6 +264,13 @@ except Exception:
     async def execute(self, cell_id, bufnr, output_id, code):
         self.send("status", {"cell_id": cell_id, "bufnr": bufnr, "status": "running"})
         logging.info(f"Executing cell {cell_id}...")
+        
+        log_file = f"/tmp/nvim_jupyter_output_{cell_id}.log"
+        if os.path.exists(log_file):
+            try:
+                os.remove(log_file)
+            except Exception:
+                pass
         
         import ast
         assigned_vars = {}

@@ -693,6 +693,31 @@ function M.jump_prev_cell(count)
     end
 end
 
+function M.view_full_output()
+    local buf = vim.api.nvim_get_current_buf()
+    local _, start_line, _ = M.get_current_cell_bounds()
+    
+    local marks = vim.api.nvim_buf_get_extmarks(buf, M.track_ns, {start_line, 0}, {start_line, -1}, {})
+    if not marks or #marks == 0 then
+        vim.notify("Could not identify the current cell for output viewing.", vim.log.levels.WARN)
+        return
+    end
+    
+    local cell_id = marks[1][1]
+    local log_file = "/tmp/nvim_jupyter_output_" .. cell_id .. ".log"
+    
+    if vim.fn.filereadable(log_file) == 1 then
+        vim.cmd("vsplit " .. log_file)
+        local out_buf = vim.api.nvim_get_current_buf()
+        pcall(vim.api.nvim_buf_set_option, out_buf, "buftype", "nofile")
+        pcall(vim.api.nvim_buf_set_option, out_buf, "bufhidden", "wipe")
+        pcall(vim.api.nvim_buf_set_option, out_buf, "swapfile", false)
+        pcall(vim.api.nvim_buf_set_option, out_buf, "modifiable", false)
+    else
+        vim.notify("No full output log found for this cell.", vim.log.levels.INFO)
+    end
+end
+
 function M.on_insert_leave()
     local buf = vim.api.nvim_get_current_buf()
     if not vim.b[buf].is_jupyter then return end
@@ -811,6 +836,7 @@ function M.setup()
             vim.keymap.set('n', keymaps.toggle_local_variables, function() require("nvim_jupyter.local_variables").toggle_sidebar() end, { buffer = args.buf, desc = "Toggle Local Variable Explorer" })
             vim.keymap.set('n', keymaps.toggle_undo_tree, function() require("nvim_jupyter.undo_tree").toggle_sidebar() end, { buffer = args.buf, desc = "Toggle Undo Tree Sidebar" })
             vim.keymap.set('n', keymaps.toggle_local_undo, function() require("nvim_jupyter.local_undo").toggle_sidebar() end, { buffer = args.buf, desc = "Toggle Local Cell Undo Tree" })
+            vim.keymap.set('n', '<leader>vo', M.view_full_output, { buffer = args.buf, desc = "View full cell output" })
             
             -- Ensure state starts global
             vim.b[args.buf].jupyter_state = "global"
