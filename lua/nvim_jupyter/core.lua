@@ -997,6 +997,8 @@ function M.setup()
             -- Ignore loose 'd' commands in global mode to prevent accidental structural damage
             vim.keymap.set('n', 'd', ignore_insert("d"), opts)
             
+            local action_opts = { buffer = args.buf, silent = true }
+            
             -- Escape key returns to Global mode
             vim.keymap.set('n', '<Esc>', function()
                 if vim.b.jupyter_state == "local" then
@@ -1005,7 +1007,7 @@ function M.setup()
                     pcall(vim.api.nvim_win_set_cursor, 0, {start_line + 1, 0})
                     require("nvim_jupyter.ui").render_cells(args.buf)
                 end
-            end, opts)
+            end, action_opts)
 
             -- Enter key enters Local mode and insert mode
             vim.keymap.set('n', '<CR>', function()
@@ -1033,8 +1035,11 @@ function M.setup()
                     pcall(vim.api.nvim_win_set_cursor, 0, {target_row, 0})
                     
                     require("nvim_jupyter.ui").render_cells(args.buf)
+                    
+                    -- Automatically enter insert mode
+                    vim.cmd("startinsert")
                 end
-            end, opts)
+            end, action_opts)
 
             -- Forbid insert mode entering from global mode
             local insert_keys = {'i', 'I', 'a', 'A', 'o', 'O', 'c', 'C', 's', 'S'}
