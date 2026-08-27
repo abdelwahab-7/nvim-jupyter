@@ -48,11 +48,18 @@ class JupyterDaemon:
     async def start(self):
         logging.info("Starting kernel...")
         await self.km.start_kernel(extra_arguments=[
-            "--IPKernelApp.iopub_msg_rate_limit=10000000000",
-            "--IPKernelApp.iopub_data_rate_limit=10000000000"
+            "--IPKernelApp.iopub_msg_rate_limit=0",
+            "--IPKernelApp.iopub_data_rate_limit=0"
         ])
         self.kc = self.km.client()
         self.kc.start_channels()
+        
+        # ZeroMQ by default drops messages if its queue exceeds 1000.
+        # This allows millions of print statements to queue safely without loss.
+        import zmq
+        if hasattr(self.kc.iopub_channel, 'socket'):
+            self.kc.iopub_channel.socket.setsockopt(zmq.RCVHWM, 0)
+            
         logging.info("Kernel channels started.")
         
         # Inject hidden setup code to force Pandas to format tables perfectly in text
