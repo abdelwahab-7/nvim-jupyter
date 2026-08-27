@@ -1035,9 +1035,6 @@ function M.setup()
                     pcall(vim.api.nvim_win_set_cursor, 0, {target_row, 0})
                     
                     require("nvim_jupyter.ui").render_cells(args.buf)
-                    
-                    -- Automatically enter insert mode
-                    vim.cmd("startinsert")
                 end
             end, action_opts)
 
