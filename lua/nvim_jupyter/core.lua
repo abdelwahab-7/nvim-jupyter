@@ -1029,14 +1029,24 @@ function M.setup()
                         target_row = start_line + 2
                     end
                     
-                    -- Jump inside the cell to edit ONLY if we are currently on/above the border, or if it was completely empty
-                    if current_line <= start_line or start_line == end_line - 1 then
-                        pcall(vim.api.nvim_win_set_cursor, 0, {target_row, 0})
-                    end
+                    -- Unconditionally jump to the first line of the code cell
+                    pcall(vim.api.nvim_win_set_cursor, 0, {target_row, 0})
                     
                     require("nvim_jupyter.ui").render_cells(args.buf)
                 end
             end, opts)
+
+            -- Forbid insert mode entering from global mode
+            local insert_keys = {'i', 'I', 'a', 'A', 'o', 'O', 'c', 'C', 's', 'S'}
+            for _, key in ipairs(insert_keys) do
+                vim.keymap.set('n', key, function()
+                    if vim.b.jupyter_state == "global" then
+                        vim.notify("Insert mode is disabled in Global Mode. Press <CR> to enter a cell first.", vim.log.levels.WARN)
+                        return "<Ignore>"
+                    end
+                    return key
+                end, { expr = true, buffer = args.buf, silent = true })
+            end
         end,
     })
 
