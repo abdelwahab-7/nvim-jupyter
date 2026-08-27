@@ -43,13 +43,12 @@ function M.read_ipynb(file_path, bufnr)
         local source_lines = vim.split(source, "\n")
         
         for _, line in ipairs(source_lines) do
-            -- Avoid appending an extra empty line if the source ended with a newline
-            -- string split leaves a trailing empty string
             table.insert(lines, line)
         end
         
         -- Remove trailing empty line caused by vim.split on strings ending in \n
-        if lines[#lines] == "" then
+        -- We ensure we don't remove it if it's the ONLY line in the cell.
+        if lines[#lines] == "" and (lines[#lines - 1] ~= "# %%" and lines[#lines - 1] ~= "# %% [markdown]") then
             table.remove(lines)
         end
         
