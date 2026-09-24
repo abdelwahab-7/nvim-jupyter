@@ -167,6 +167,45 @@ function M.update(bufnr, cells)
     parser:set_included_regions(py_regions)
 end
 
+--- Preview in Global Mode, source in Local Mode.
+---
+--- Conceal comes from Neovim's own markdown queries (fences, inline code
+--- backticks, link targets) and is display only: the buffer text never changes.
+--- Global Mode is the reading view, so it keeps that preview look. Local Mode is
+--- the editing view, so the source markers have to stay readable there.
+---
+--- `conceallevel` is a window option, so this cannot be scoped to the single
+--- active cell: entering any markdown cell reveals the source of every markdown
+--- cell in that window. The previous value is parked in a window variable, so it
+--- is restored on the way out and dies with the window.
+---@param bufnr integer
+---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
+function M.sync_conceal(bufnr, active_cell)
+    if not config.options.markdown_highlighting then return end
+
+    local editing = active_cell ~= nil
+        and active_cell.is_markdown == true
+        and vim.b[bufnr].jupyter_state == "local"
+
+    local key = "nvim_jupyter_conceallevel"
+    for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+        local saved_ok, saved = pcall(vim.api.nvim_win_get_var, win, key)
+
+        if editing then
+            if not saved_ok then
+                vim.api.nvim_win_set_var(win, key,
+                    vim.api.nvim_get_option_value("conceallevel", { win = win }))
+            end
+            if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 0 then
+                vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
+            end
+        elseif saved_ok then
+            vim.api.nvim_set_option_value("conceallevel", saved, { win = win })
+            pcall(vim.api.nvim_win_del_var, win, key)
+        end
+    end
+end
+
 function M.setup()
     local group = vim.api.nvim_create_augroup("NvimJupyterMarkdown", { clear = true })
     vim.api.nvim_create_autocmd("BufWipeout", {
