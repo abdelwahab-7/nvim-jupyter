@@ -49,45 +49,35 @@ end
 
 --- Compute the included regions for both languages.
 ---
---- Each markdown cell body is its own region so an unterminated construct (for
---- example a fence the user is still typing) cannot leak into the next cell.
---- The python side keeps the previous whole-buffer parse context with the
---- markdown bodies simply carved out of it.
+--- One region per cell, for both languages: cells are independent documents in
+--- a notebook, so a construct left open in one of them cannot leak into the
+--- next one (or into the markdown cells in between).
+---
+--- The `# %%` header line is a notebook marker rather than cell content, so it
+--- is left out of both trees (it is overlaid by the cell border anyway).
 ---
 ---@param cells table[] Cells from ui.parse_cells()
 ---@param lines string[]
 ---@return table md_regions
 ---@return table py_regions
 local function compute_regions(cells, lines)
-    local last_row = #lines - 1
     local md_regions = {}
-    local py_ranges = {}
-    local cursor = 0
+    local py_regions = {}
 
     for _, cell in ipairs(cells) do
-        if cell.is_markdown then
-            -- The `# %% [markdown]` header line stays python: it keeps its
-            -- comment highlighting and is overlaid by the cell border anyway.
-            local first, last = cell.start_line + 1, cell.end_line
-            if first <= last then
-                table.insert(md_regions, { row_range(lines, first, last) })
-            end
-            if first - 1 >= cursor then
-                table.insert(py_ranges, row_range(lines, cursor, first - 1))
-            end
-            if last + 1 > cursor then
-                cursor = last + 1
+        local first = cell.implicit and cell.start_line or (cell.start_line + 1)
+        local last = cell.end_line
+        if first <= last then
+            local region = { row_range(lines, first, last) }
+            if cell.is_markdown then
+                table.insert(md_regions, region)
+            else
+                table.insert(py_regions, region)
             end
         end
     end
 
-    if cursor <= last_row then
-        table.insert(py_ranges, row_range(lines, cursor, last_row))
-    end
-
-    -- One region holding every non-markdown range: the python code is still
-    -- parsed in a single context, exactly as it was before.
-    return md_regions, { py_ranges }
+    return md_regions, py_regions
 end
 
 --- Keep the manually attached markdown child alive.
