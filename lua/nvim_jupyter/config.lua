@@ -21,6 +21,7 @@ M.defaults = {
   },
   render_html_as_image = false,    -- use macOS qlmanage to render HTML as image
   clean_tmp_files_on_exit = true,  -- delete /tmp/*.html.png generated images on VimLeave
+  markdown_highlighting = true,    -- highlight markdown cells with the markdown parser
   lsp_bridge = true,               -- enable URI shim for Jupyter buffers only
   keymaps = {
     run_current_cell = "<leader>rc",
