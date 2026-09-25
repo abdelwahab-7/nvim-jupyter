@@ -58,6 +58,14 @@ require("nvim_jupyter").setup({
   -- Clean up temporary images in /tmp/ when closing Neovim
   clean_tmp_files_on_exit = true,
 
+  -- Highlight markdown cells with the markdown parser
+  markdown_highlighting = true,
+
+  -- While a markdown cell is in Local Mode, show its source (``` fences,
+  -- `inline code`, link targets) instead of the concealed preview.
+  -- Global Mode keeps the preview either way.
+  markdown_source_in_local_mode = true,
+
   -- Keybindings (these are the defaults)
   keymaps = {
     run_current_cell = "<leader>rc",

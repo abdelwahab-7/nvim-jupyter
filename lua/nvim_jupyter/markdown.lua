@@ -172,7 +172,8 @@ end
 --- Conceal comes from Neovim's own markdown queries (fences, inline code
 --- backticks, link targets) and is display only: the buffer text never changes.
 --- Global Mode is the reading view, so it keeps that preview look. Local Mode is
---- the editing view, so the source markers have to stay readable there.
+--- the editing view, where the source markers are usually what you want to see;
+--- `markdown_source_in_local_mode = false` keeps the preview everywhere.
 ---
 --- `conceallevel` is a window option, so this cannot be scoped to the single
 --- active cell: entering any markdown cell reveals the source of every markdown
@@ -181,9 +182,9 @@ end
 ---@param bufnr integer
 ---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
 function M.sync_conceal(bufnr, active_cell)
-    if not config.options.markdown_highlighting then return end
-
-    local editing = active_cell ~= nil
+    local editing = config.options.markdown_highlighting
+        and config.options.markdown_source_in_local_mode
+        and active_cell ~= nil
         and active_cell.is_markdown == true
         and vim.b[bufnr].jupyter_state == "local"
 
