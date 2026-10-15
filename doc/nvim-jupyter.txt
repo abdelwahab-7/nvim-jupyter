@@ -50,6 +50,11 @@ You can configure the plugin by calling its setup function:
       -- Global Mode keeps the preview either way.
       markdown_source_in_local_mode = true,
       
+      -- How markdown source is revealed in Local Mode:
+      --   "line" (default): line-by-line / cursorline reveal
+      --   "cell": reveals raw markdown for the whole cell at once
+      markdown_reveal_mode = "line",
+      
       -- Custom Keymaps
       keymaps = {
         run_current_cell = "<leader>rc",

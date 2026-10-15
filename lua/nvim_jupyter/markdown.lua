@@ -199,17 +199,46 @@ end
 local last_state = {}
 
 --- Sync conceal settings for the notebook buffer.
---- Automatically ensures conceallevel = 2 for Jupyter notebook windows so the
---- user doesn't have to configure or toggle it manually.
+--- In Global Mode: conceallevel = 2 and concealcursor = "nvic" (pure preview look).
+--- In Local Mode inside a markdown cell:
+---   "line" (default): conceallevel = 2 and concealcursor = "" (reveals raw markdown line-by-line at cursorline)
+---   "cell": conceallevel = 0 (reveals raw markdown across the whole cell at once)
 ---@param bufnr integer
 ---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
 function M.sync_conceal(bufnr, active_cell)
     if not config.options.markdown_highlighting then return end
 
-    -- Automatically ensure conceallevel is at least 2 on all windows displaying this notebook
+    local editing = config.options.markdown_source_in_local_mode
+        and active_cell ~= nil
+        and active_cell.is_markdown == true
+        and vim.b[bufnr].jupyter_state == "local"
+
+    local reveal_mode = config.options.markdown_reveal_mode or "line"
+
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
-        if vim.api.nvim_get_option_value("conceallevel", { win = win }) < 2 then
-            vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+        if editing then
+            if reveal_mode == "cell" then
+                -- Whole-cell reveal: drop conceallevel to 0
+                if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 0 then
+                    vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
+                end
+            else
+                -- Line-by-line reveal: keep conceallevel = 2, drop concealcursor to ""
+                if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 2 then
+                    vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+                end
+                if vim.api.nvim_get_option_value("concealcursor", { win = win }) ~= "" then
+                    vim.api.nvim_set_option_value("concealcursor", "", { win = win })
+                end
+            end
+        else
+            -- Global Mode: full preview everywhere (conceallevel = 2, concealcursor = "nvic")
+            if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 2 then
+                vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+            end
+            if vim.api.nvim_get_option_value("concealcursor", { win = win }) ~= "nvic" then
+                vim.api.nvim_set_option_value("concealcursor", "nvic", { win = win })
+            end
         end
     end
 
