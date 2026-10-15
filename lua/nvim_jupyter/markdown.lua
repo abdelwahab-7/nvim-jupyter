@@ -167,51 +167,70 @@ function M.update(bufnr, cells)
     parser:set_included_regions(py_regions)
 end
 
---- Preview in Global Mode, source in Local Mode.
+--- Preview in Global Mode, source in Local Mode for the active cell ONLY.
 ---
---- Conceal comes from Neovim's own markdown queries (fences, inline code
---- backticks, link targets) and is display only: the buffer text never changes.
---- Global Mode is the reading view, so it keeps that preview look. Local Mode is
---- the editing view, where the source markers are usually what you want to see;
---- `markdown_source_in_local_mode = false` keeps the preview everywhere.
----
---- `conceallevel` is a window option, so this cannot be scoped to the single
---- active cell: entering any markdown cell reveals the source of every markdown
---- cell in that window. The previous value is parked in a window variable, so it
---- is restored on the way out and dies with the window.
----@param bufnr integer
----@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
-function M.sync_conceal(bufnr, active_cell)
-    local editing = config.options.markdown_highlighting
-        and config.options.markdown_source_in_local_mode
-        and active_cell ~= nil
-        and active_cell.is_markdown == true
-        and vim.b[bufnr].jupyter_state == "local"
+--- Global Mode keeps the markdown preview look (concealed fences, inline code
+--- backticks, link targets). Local Mode is the editing view, where only the active
+--- markdown cell drops its conceal so you can edit its raw source while all other
+--- cells remain cleanly concealed as previews.
 
-    local key = "nvim_jupyter_conceallevel"
-    for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
-        local saved_ok, saved = pcall(vim.api.nvim_win_get_var, win, key)
+local extmark_hook_installed = false
 
-        if editing then
-            if not saved_ok then
-                vim.api.nvim_win_set_var(win, key,
-                    vim.api.nvim_get_option_value("conceallevel", { win = win }))
+local function install_extmark_hook()
+    if extmark_hook_installed then return end
+    extmark_hook_installed = true
+
+    local orig_set_extmark = vim.api.nvim_buf_set_extmark
+    vim.api.nvim_buf_set_extmark = function(buf, ns, row, col, opts)
+        if opts and opts.conceal and vim.b[buf] and vim.b[buf].is_jupyter then
+            if config.options.markdown_highlighting and config.options.markdown_source_in_local_mode then
+                if vim.b[buf].jupyter_state == "local" then
+                    local active_cell = vim.b[buf].jupyter_active_cell
+                    if active_cell and active_cell.is_markdown and row >= active_cell.start_line and row <= active_cell.end_line then
+                        opts.conceal = nil
+                    end
+                end
             end
-            if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 0 then
-                vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
-            end
-        elseif saved_ok then
-            vim.api.nvim_set_option_value("conceallevel", saved, { win = win })
-            pcall(vim.api.nvim_win_del_var, win, key)
         end
+        return orig_set_extmark(buf, ns, row, col, opts)
     end
 end
 
+local last_state = {}
+
+--- Sync conceal settings for the notebook buffer.
+--- Automatically ensures conceallevel = 2 for Jupyter notebook windows so the
+--- user doesn't have to configure or toggle it manually.
+---@param bufnr integer
+---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
+function M.sync_conceal(bufnr, active_cell)
+    if not config.options.markdown_highlighting then return end
+
+    -- Automatically ensure conceallevel is at least 2 on all windows displaying this notebook
+    for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+        if vim.api.nvim_get_option_value("conceallevel", { win = win }) < 2 then
+            vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
+        end
+    end
+
+    local current_state = (vim.b[bufnr] and vim.b[bufnr].jupyter_state) or "global"
+    local active_cell_id = active_cell and (active_cell.start_line .. ":" .. active_cell.end_line) or "none"
+    local key = current_state .. ":" .. active_cell_id
+
+    if last_state[bufnr] and last_state[bufnr] ~= key then
+        vim.cmd("redraw")
+    end
+    last_state[bufnr] = key
+end
+
 function M.setup()
+    install_extmark_hook()
+
     local group = vim.api.nvim_create_augroup("NvimJupyterMarkdown", { clear = true })
     vim.api.nvim_create_autocmd("BufWipeout", {
         group = group,
         callback = function(args)
+            last_state[args.buf] = nil
             for parser in pairs(configured) do
                 if parser:source() == args.buf then
                     configured[parser] = nil

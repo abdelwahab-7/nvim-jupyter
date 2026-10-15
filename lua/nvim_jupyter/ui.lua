@@ -165,7 +165,11 @@ function M.render_cells(bufnr)
         local hl = is_active and "JupyterBorderActive" or "JupyterBorderInactive"
         
         if is_active then
-            vim.b[bufnr].jupyter_active_cell = { start_line = cell.start_line, end_line = cell.end_line }
+            vim.b[bufnr].jupyter_active_cell = {
+                start_line = cell.start_line,
+                end_line = cell.end_line,
+                is_markdown = cell.is_markdown == true,
+            }
             active_cell = cell
         end
         
