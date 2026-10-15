@@ -84,12 +84,13 @@ function M.stop_spinner()
     end
 end
 
-function M.render_cells(bufnr)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.b[bufnr].is_jupyter then return end
-
-    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
-    
+--- Split the buffer into notebook cells.
+---
+--- `start_line` / `end_line` are 0-indexed and inclusive; `start_line` points at
+--- the `# %%` header (or at the first line for an implicit first cell).
+---@param bufnr integer
+---@return table[] cells
+function M.parse_cells(bufnr)
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     local cells = {}
     local current_cell = nil
@@ -127,6 +128,20 @@ function M.render_cells(bufnr)
         current_cell.end_line = #lines - 1
         table.insert(cells, current_cell)
     end
+
+    return cells
+end
+
+function M.render_cells(bufnr)
+    bufnr = bufnr or vim.api.nvim_get_current_buf()
+    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.b[bufnr].is_jupyter then return end
+
+    vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+    
+    local cells = M.parse_cells(bufnr)
+
+    -- Keep the treesitter regions in sync with the cell layout before drawing.
+    require("nvim_jupyter.markdown").update(bufnr, cells)
     
     local ui_state = {}
     local active_line = -1
@@ -143,6 +158,7 @@ function M.render_cells(bufnr)
     end
     
     local cell_index = 1
+    local active_cell = nil
     
     for i, cell in ipairs(cells) do
         local is_active = (active_line >= cell.start_line and active_line <= cell.end_line)
@@ -150,6 +166,7 @@ function M.render_cells(bufnr)
         
         if is_active then
             vim.b[bufnr].jupyter_active_cell = { start_line = cell.start_line, end_line = cell.end_line }
+            active_cell = cell
         end
         
         if not cell.implicit and not cell.is_output then
@@ -332,6 +349,9 @@ function M.render_cells(bufnr)
             virt_lines_above = false,
         })
     end
+
+    -- Reading view in Global Mode, source while a markdown cell is being edited.
+    require("nvim_jupyter.markdown").sync_conceal(bufnr, active_cell)
 end
 
 function M.setup()
