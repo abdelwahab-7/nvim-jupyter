@@ -341,6 +341,24 @@ function M.sync_conceal(bufnr, _active_cell)
 end
 
 function M.setup()
+    -- Compatibility with nvim-treesitter directive on Neovim 0.12+ where
+    -- match captures can be passed as tables of nodes rather than single nodes.
+    local ok_query, query = pcall(require, "vim.treesitter.query")
+    if ok_query and query.add_directive then
+        query.add_directive("set-lang-from-info-string!", function(match, _, bufnr, pred, metadata)
+            local capture_id = pred[2]
+            local node = match[capture_id]
+            if type(node) == "table" and not node.range then
+                node = node[1]
+            end
+            if not node then return end
+            local ok_text, text = pcall(vim.treesitter.get_node_text, node, bufnr)
+            if ok_text and text then
+                metadata["injection.language"] = text:lower()
+            end
+        end, { force = true, all = true })
+    end
+
     local group = vim.api.nvim_create_augroup("NvimJupyterMarkdown", { clear = true })
     vim.api.nvim_create_autocmd("BufWipeout", {
         group = group,

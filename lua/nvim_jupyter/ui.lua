@@ -90,8 +90,8 @@ end
 --- the `# %%` header (or at the first line for an implicit first cell).
 ---@param bufnr integer
 ---@return table[] cells
-function M.parse_cells(bufnr)
-    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+function M.parse_cells(bufnr, lines)
+    lines = lines or vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     local cells = {}
     local current_cell = nil
     
@@ -142,7 +142,8 @@ function M.render_cells(bufnr)
     -- layout so conceal and highlighting never use stale bounds.
     vim.b[bufnr].jupyter_active_cell = nil
     
-    local cells = M.parse_cells(bufnr)
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local cells = M.parse_cells(bufnr, lines)
 
     local active_line = -1
     local width = vim.api.nvim_get_option("columns") - 5 -- Default fallback width
@@ -333,9 +334,24 @@ function M.render_cells(bufnr)
             vim.api.nvim_buf_set_extmark(bufnr, ns_id, cell.start_line, 0, extmark_opts)
         end
         
+        -- Tree-sitter hides closing code fences in markdown cells with
+        -- `conceal_lines = ""` in Global Mode. Neovim skips concealed lines
+        -- during rendering and drops any virt_lines anchored to them. Anchor the
+        -- bottom border and content left border to the last visible line instead.
+        local bottom_line = cell.end_line
+        if cell.is_markdown and not local_mode then
+            for l = cell.end_line, cell.start_line + 1, -1 do
+                local line_text = lines[l + 1] or ""
+                if not line_text:match("^%s*```+") and not line_text:match("^%s*~~~+") then
+                    bottom_line = l
+                    break
+                end
+            end
+        end
+
         -- Left borders for contents
         local content_start = cell.implicit and cell.start_line or (cell.start_line + 1)
-        for l = content_start, cell.end_line do
+        for l = content_start, bottom_line do
             if not cell.is_output then
                 vim.api.nvim_buf_set_extmark(bufnr, ns_id, l, 0, {
                     sign_text = "│ ",
@@ -404,7 +420,7 @@ function M.render_cells(bufnr)
             end
         end
         
-        vim.api.nvim_buf_set_extmark(bufnr, ns_id, cell.end_line, 0, {
+        vim.api.nvim_buf_set_extmark(bufnr, ns_id, bottom_line, 0, {
             virt_lines = { virt_lines_chunks },
             virt_lines_above = false,
         })
