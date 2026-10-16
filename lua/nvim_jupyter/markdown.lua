@@ -23,6 +23,20 @@ local M = {}
 
 local config = require("nvim_jupyter.config")
 
+-- Safeguard for Neovim 0.12+ tree-sitter queries where match captures can be
+-- passed as a table { TSNode } rather than a bare TSNode, which breaks query
+-- directives like set-lang-from-info-string!.
+if vim.treesitter and vim.treesitter.get_node_text then
+    local orig_get_node_text = vim.treesitter.get_node_text
+    vim.treesitter.get_node_text = function(node, source, opts)
+        if type(node) == "table" and not node.range then
+            node = node[1]
+        end
+        if not node then return "" end
+        return orig_get_node_text(node, source, opts)
+    end
+end
+
 -- State per buffer: the parser and markdown tree we configured last, plus the
 -- regions currently handed to them. Keyed weakly so recreated parsers do not
 -- pile up.
