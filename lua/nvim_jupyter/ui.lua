@@ -292,7 +292,9 @@ function M.render_cells(bufnr)
         -- instead, where a following Python cell cannot inherit markdown's
         -- conceal decoration. Hide the physical marker separately so this
         -- keeps the same one-line layout.
-        local use_stable_top_border = not cell.implicit
+        local local_mode = vim.b[bufnr].jupyter_state == "local"
+        local use_stable_top_border = not local_mode
+            and not cell.implicit
             and not cell.is_output
             and cell.start_line < cell.end_line
 
@@ -314,8 +316,10 @@ function M.render_cells(bufnr)
                 priority = 10000,
             })
         elseif not cell.implicit then
-            -- Empty cells have no content row to anchor a virtual line to.
-            -- Keep the overlay fallback for them and for output blocks.
+            -- Local Mode overlays the physical marker directly so it remains
+            -- invisible even when markdown reveal changes the window's
+            -- conceal behavior. Empty cells also use this fallback because
+            -- they have no content row to anchor a virtual line to.
             local extmark_opts = {
                 virt_text = virt_chunks,
                 virt_text_pos = "overlay",
