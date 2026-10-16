@@ -146,10 +146,12 @@ function M.render_cells(bufnr)
 
     local active_line = -1
     local width = vim.api.nvim_get_option("columns") - 5 -- Default fallback width
+    local text_offset = 0
     for _, w in ipairs(vim.api.nvim_list_wins()) do
         if vim.api.nvim_win_get_buf(w) == bufnr then
             local wininfo = vim.fn.getwininfo(w)[1]
             width = wininfo.width - wininfo.textoff
+            text_offset = wininfo.textoff
             if vim.api.nvim_get_current_win() == w then
                 active_line = vim.api.nvim_win_get_cursor(w)[1] - 1
             end
@@ -283,14 +285,40 @@ function M.render_cells(bufnr)
             end
         end
         
-        -- Top Border (overlay the # %%)
-        if not cell.implicit then
+        -- A cell marker can be hidden by a Tree-sitter `conceal_lines`
+        -- decoration after a markdown parse. If the top border is overlaid on
+        -- that marker, the border disappears with it even though its extmark
+        -- is still present. Put normal cell borders on the first content line
+        -- instead, where a following Python cell cannot inherit markdown's
+        -- conceal decoration. Hide the physical marker separately so this
+        -- keeps the same one-line layout.
+        local use_stable_top_border = not cell.implicit
+            and not cell.is_output
+            and cell.start_line < cell.end_line
+
+        if use_stable_top_border then
+            vim.api.nvim_buf_set_extmark(bufnr, ns_id, cell.start_line, 0, {
+                conceal_lines = "",
+                priority = 10000,
+            })
+            local stable_top_chunks = {
+                {"│" .. string.rep(" ", math.max(text_offset - 1, 0)), hl},
+            }
+            for _, chunk in ipairs(virt_chunks) do
+                table.insert(stable_top_chunks, chunk)
+            end
+            vim.api.nvim_buf_set_extmark(bufnr, ns_id, cell.start_line + 1, 0, {
+                virt_lines = { stable_top_chunks },
+                virt_lines_above = true,
+                virt_lines_leftcol = true,
+                priority = 10000,
+            })
+        elseif not cell.implicit then
+            -- Empty cells have no content row to anchor a virtual line to.
+            -- Keep the overlay fallback for them and for output blocks.
             local extmark_opts = {
                 virt_text = virt_chunks,
                 virt_text_pos = "overlay",
-                -- The header is the cell boundary. Markdown conceal and
-                -- injected Python trees may add extmarks to nearby rows, so
-                -- keep this structural decoration above those highlights.
                 priority = 10000,
                 virt_text_hide = false,
             }
@@ -392,7 +420,7 @@ function M.render_cells(bufnr)
             end
             vim.b[bufnr].jupyter_markdown_render_pending = false
             M.render_cells(bufnr)
-            vim.cmd("redraw")
+            vim.cmd("redraw!")
         end)
     end
 end
