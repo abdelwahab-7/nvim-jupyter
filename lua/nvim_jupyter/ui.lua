@@ -137,13 +137,13 @@ function M.render_cells(bufnr)
     if not vim.api.nvim_buf_is_valid(bufnr) or not vim.b[bufnr].is_jupyter then return end
 
     vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+    -- A structural edit can leave the previous active-cell record pointing at
+    -- rows that now belong to another cell. Clear it before rebuilding the
+    -- layout so conceal and highlighting never use stale bounds.
+    vim.b[bufnr].jupyter_active_cell = nil
     
     local cells = M.parse_cells(bufnr)
 
-    -- Keep the treesitter regions in sync with the cell layout before drawing.
-    require("nvim_jupyter.markdown").update(bufnr, cells)
-    
-    local ui_state = {}
     local active_line = -1
     local width = vim.api.nvim_get_option("columns") - 5 -- Default fallback width
     for _, w in ipairs(vim.api.nvim_list_wins()) do
@@ -156,9 +156,28 @@ function M.render_cells(bufnr)
             break
         end
     end
+
+    -- Set the active cell before rebuilding the language trees. A synchronous
+    -- parser refresh can create conceal extmarks, and those extmarks must use
+    -- the new cell bounds immediately after a deletion.
+    local active_cell
+    for _, cell in ipairs(cells) do
+        if active_line >= cell.start_line and active_line <= cell.end_line then
+            active_cell = cell
+            vim.b[bufnr].jupyter_active_cell = {
+                start_line = cell.start_line,
+                end_line = cell.end_line,
+                is_markdown = cell.is_markdown == true,
+            }
+            break
+        end
+    end
+
+    -- Keep the treesitter regions in sync with the cell layout before drawing.
+    local markdown = require("nvim_jupyter.markdown")
+    local markdown_regions_changed = markdown.update(bufnr, cells)
     
     local cell_index = 1
-    local active_cell = nil
     
     for i, cell in ipairs(cells) do
         local is_active = (active_line >= cell.start_line and active_line <= cell.end_line)
@@ -269,6 +288,11 @@ function M.render_cells(bufnr)
             local extmark_opts = {
                 virt_text = virt_chunks,
                 virt_text_pos = "overlay",
+                -- The header is the cell boundary. Markdown conceal and
+                -- injected Python trees may add extmarks to nearby rows, so
+                -- keep this structural decoration above those highlights.
+                priority = 10000,
+                virt_text_hide = false,
             }
             if not cell.is_output then
                 extmark_opts.sign_text = "│ "
@@ -355,7 +379,22 @@ function M.render_cells(bufnr)
     end
 
     -- Reading view in Global Mode, source while a markdown cell is being edited.
-    require("nvim_jupyter.markdown").sync_conceal(bufnr, active_cell)
+    markdown.sync_conceal(bufnr, active_cell)
+
+    -- Tree-sitter can perform one more redraw after a structural parse. Draw
+    -- the borders again on the next event-loop turn so a stale injected tree
+    -- cannot leave a following code cell visually merged with markdown.
+    if markdown_regions_changed and not vim.b[bufnr].jupyter_markdown_render_pending then
+        vim.b[bufnr].jupyter_markdown_render_pending = true
+        vim.schedule(function()
+            if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+                return
+            end
+            vim.b[bufnr].jupyter_markdown_render_pending = false
+            M.render_cells(bufnr)
+            vim.cmd("redraw")
+        end)
+    end
 end
 
 function M.setup()

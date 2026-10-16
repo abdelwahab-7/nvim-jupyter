@@ -487,9 +487,23 @@ function M.delete_cell()
     -- If it's the only cell, don't delete the whole file, just clear it
     if start_line == 0 and end_line >= vim.api.nvim_buf_line_count(buf) - 1 then
         vim.api.nvim_buf_set_lines(buf, 0, -1, false, {"# %%", ""})
+        vim.b[buf].jupyter_active_cell = nil
+        require("nvim_jupyter.ui").render_cells(buf)
+        vim.cmd("redraw!")
         return
     end
     vim.api.nvim_buf_set_lines(buf, start_line, end_line + 1, false, {})
+
+    -- Programmatic buffer changes do not reliably trigger TextChanged before
+    -- the delete command returns. Rebuild the borders immediately while the
+    -- new cell positions are authoritative, then force Neovim to paint the
+    -- new extmarks in the same redraw cycle.
+    local total_lines = vim.api.nvim_buf_line_count(buf)
+    local target_line = math.min(start_line + 1, total_lines)
+    pcall(vim.api.nvim_win_set_cursor, 0, {target_line, 0})
+    vim.b[buf].jupyter_active_cell = nil
+    require("nvim_jupyter.ui").render_cells(buf)
+    vim.cmd("redraw!")
 end
 
 local function get_all_cells(buf)
