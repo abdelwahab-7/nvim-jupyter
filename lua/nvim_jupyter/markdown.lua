@@ -28,6 +28,15 @@ local config = require("nvim_jupyter.config")
 -- pile up.
 local configured = setmetatable({}, { __mode = "k" })
 
+local function range_coordinates(range)
+    if #range >= 6 then
+        -- Range6 is {start_row, start_col, start_byte, end_row, end_col,
+        -- end_byte}; the byte offsets are not part of the logical region.
+        return range[1], range[2], range[4], range[5]
+    end
+    return range[1], range[2], range[3], range[4]
+end
+
 local function same_regions(left, right)
     if not left or #left ~= #right then
         return false
@@ -43,12 +52,13 @@ local function same_regions(left, right)
             if not right_range then
                 return false
             end
-            -- Neovim expands four-coordinate ranges internally. Compare the
-            -- stable row and column coordinates only.
-            for coordinate = 1, 4 do
-                if left_range[coordinate] ~= right_range[coordinate] then
-                    return false
-                end
+            local left_start_row, left_start_col, left_end_row, left_end_col = range_coordinates(left_range)
+            local right_start_row, right_start_col, right_end_row, right_end_col = range_coordinates(right_range)
+            if left_start_row ~= right_start_row
+                or left_start_col ~= right_start_col
+                or left_end_row ~= right_end_row
+                or left_end_col ~= right_end_col then
+                return false
             end
         end
     end
@@ -61,10 +71,7 @@ local function position_leq(left_row, left_col, right_row, right_col)
 end
 
 local function range_bounds(range)
-    if #range >= 6 then
-        return range[1], range[2], range[4], range[5]
-    end
-    return range[1], range[2], range[3], range[4]
+    return range_coordinates(range)
 end
 
 local function range_inside(outer, inner)
