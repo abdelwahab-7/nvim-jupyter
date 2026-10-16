@@ -332,7 +332,12 @@ local function install_extmark_hook()
             if config.options.markdown_highlighting and config.options.markdown_source_in_local_mode then
                 if vim.b[buf].jupyter_state == "local" then
                     local active_cell = vim.b[buf].jupyter_active_cell
-                    if active_cell and active_cell.is_markdown and row >= active_cell.start_line and row <= active_cell.end_line then
+                    local reveal_mode = config.options.markdown_reveal_mode or "line"
+                    if reveal_mode == "cell"
+                        and active_cell
+                        and active_cell.is_markdown
+                        and row >= active_cell.start_line
+                        and row <= active_cell.end_line then
                         opts.conceal = nil
                     end
                 end
@@ -348,7 +353,7 @@ local last_state = {}
 --- In Global Mode: conceallevel = 2 and concealcursor = "nvic" (pure preview look).
 --- In Local Mode inside a markdown cell:
 ---   "line" (default): conceallevel = 2 and concealcursor = "" (reveals raw markdown line-by-line at cursorline)
----   "cell": conceallevel = 0 (reveals raw markdown across the whole cell at once)
+---   "cell": conceallevel = 2 with conceal removed only from the active cell
 ---@param bufnr integer
 ---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
 function M.sync_conceal(bufnr, active_cell)
@@ -364,9 +369,11 @@ function M.sync_conceal(bufnr, active_cell)
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
         if editing then
             if reveal_mode == "cell" then
-                -- Whole-cell reveal: drop conceallevel to 0
-                if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 0 then
-                    vim.api.nvim_set_option_value("conceallevel", 0, { win = win })
+                -- Whole-cell reveal stays at the preview level. The extmark
+                -- hook removes conceal from this cell as Tree-sitter rebuilds
+                -- its decorations, leaving every other cell concealed.
+                if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= 2 then
+                    vim.api.nvim_set_option_value("conceallevel", 2, { win = win })
                 end
             else
                 -- Line-by-line reveal: keep conceallevel = 2, drop concealcursor to ""
@@ -390,12 +397,26 @@ function M.sync_conceal(bufnr, active_cell)
 
     local current_state = (vim.b[bufnr] and vim.b[bufnr].jupyter_state) or "global"
     local active_cell_id = active_cell and (active_cell.start_line .. ":" .. active_cell.end_line) or "none"
-    local key = current_state .. ":" .. active_cell_id
-
-    if last_state[bufnr] and last_state[bufnr] ~= key then
-        vim.cmd("redraw")
+    local key = "global"
+    if editing then
+        key = "local:" .. active_cell_id
     end
-    last_state[bufnr] = key
+
+    if last_state[bufnr] ~= key then
+        local was_local = last_state[bufnr] and last_state[bufnr]:match("^local:") ~= nil
+        last_state[bufnr] = key
+
+        if editing or was_local then
+            -- Tree-sitter created its conceal extmarks before Local Mode knew
+            -- which cell was active. Reparse once on entry/exit so the hook
+            -- can update only that cell's decorations.
+            local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "python")
+            if ok and parser then
+                pcall(parser.parse, parser, true)
+            end
+        end
+        vim.cmd("redraw!")
+    end
 end
 
 function M.setup()
