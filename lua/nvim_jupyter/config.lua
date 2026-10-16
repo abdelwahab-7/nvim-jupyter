@@ -25,12 +25,6 @@ M.defaults = {
   -- show markdown source (fences, inline code, link targets) while a markdown
   -- cell is in Local Mode; Global Mode keeps the concealed preview
   markdown_source_in_local_mode = true,
-  -- how markdown source is revealed in Local Mode:
-  --   "line": line-by-line / cursorline reveal
-  --   "cell" (default): reveals raw markdown for the whole cell at once
-  -- A markdown cell in Local Mode behaves like conceallevel=0 for that cell;
-  -- the window remains at conceallevel=2 so other cells keep their preview.
-  markdown_reveal_mode = "cell",
   lsp_bridge = true,               -- enable URI shim for Jupyter buffers only
   keymaps = {
     run_current_cell = "<leader>rc",

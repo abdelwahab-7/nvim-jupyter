@@ -66,11 +66,8 @@ require("nvim_jupyter").setup({
   -- Global Mode keeps the preview either way.
   markdown_source_in_local_mode = true,
 
-  -- How markdown source is revealed in Local Mode:
-  --   "line": line-by-line / cursorline reveal
-  --   "cell" (default): reveals raw markdown across the active cell
-  -- The active cell behaves like conceallevel=0 while other cells keep their preview.
-  markdown_reveal_mode = "cell",
+  -- Global Mode uses conceallevel=2. Local Mode uses conceallevel=0
+  -- immediately for direct editing in Normal and Insert mode.
 
   -- Keybindings (these are the defaults)
   keymaps = {
