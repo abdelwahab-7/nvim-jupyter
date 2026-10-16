@@ -221,6 +221,7 @@ function M.restore_cell()
     end
     
     require("nvim_jupyter.ui").render_cells(target_buf)
+    vim.cmd("redraw!")
     M.render()
     
     vim.notify("Restored cell Node #" .. node.id .. " at line " .. (insert_at + 1), vim.log.levels.INFO)
@@ -277,6 +278,7 @@ function M.apply_selection()
     end
     
     require("nvim_jupyter.ui").render_cells(target_buf)
+    vim.cmd("redraw!")
     M.render()
     
     vim.notify("Successfully restored " .. count .. " selected cell(s)!", vim.log.levels.INFO)
@@ -312,6 +314,14 @@ function M.toggle_sidebar()
         vim.api.nvim_win_close(sidebar_win, true)
         sidebar_win = nil
         pcall(function() require("nvim_jupyter.floating").close_all() end)
+        if current_target_buf and vim.api.nvim_buf_is_valid(current_target_buf) then
+            vim.schedule(function()
+                if vim.api.nvim_buf_is_valid(current_target_buf) then
+                    require("nvim_jupyter.ui").render_cells(current_target_buf)
+                    vim.cmd("redraw!")
+                end
+            end)
+        end
         return
     end
     
@@ -430,6 +440,7 @@ function M.render()
             -- Line 2: Mid title line
             table.insert(lines, box_mid)
             local mid_line_idx = #lines - 1
+            line_to_node[mid_line_idx] = node.id
             table.insert(highlights, {mid_line_idx, 0, -1, "JupyterUndoBorder"})
             
             -- Checkbox highlight
@@ -446,12 +457,14 @@ function M.render()
             -- Line 3: Code preview line
             table.insert(lines, "│ " .. prev_line)
             local prev_line_idx = #lines - 1
+            line_to_node[prev_line_idx] = node.id
             table.insert(highlights, {prev_line_idx, 0, -1, "JupyterUndoBorder"})
             table.insert(highlights, {prev_line_idx, 6, -3, "JupyterUndoCode"})
             
             -- Line 4: Bottom border
             table.insert(lines, box_bottom)
             local bot_line_idx = #lines - 1
+            line_to_node[bot_line_idx] = node.id
             table.insert(highlights, {bot_line_idx, 0, -1, "JupyterUndoBorder"})
             
             -- Render child nodes with connector lines
@@ -484,11 +497,19 @@ function M.render()
         end)
     end
     
-    -- Place cursor on first node if not already set
-    if #lines > 9 and line_to_node[9] then
-        pcall(function()
-            vim.api.nvim_win_set_cursor(sidebar_win, {10, 2})
-        end)
+    -- Place cursor on first node if not already positioned on a node
+    if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
+        local cur = vim.api.nvim_win_get_cursor(sidebar_win)
+        if not line_to_node[cur[1] - 1] then
+            for l = 10, #lines - 1 do
+                if line_to_node[l] then
+                    pcall(function()
+                        vim.api.nvim_win_set_cursor(sidebar_win, {l + 2, 2})
+                    end)
+                    break
+                end
+            end
+        end
     end
 end
 

@@ -337,7 +337,9 @@ function M.render_cells(bufnr)
         -- Tree-sitter hides closing code fences in markdown cells with
         -- `conceal_lines = ""` in Global Mode. Neovim skips concealed lines
         -- during rendering and drops any virt_lines anchored to them. Anchor the
-        -- bottom border and content left border to the last visible line instead.
+        -- bottom border and content left border to the last visible line instead,
+        -- and explicitly conceal the trailing fence lines so they never render
+        -- below the bottom border.
         local bottom_line = cell.end_line
         if cell.is_markdown and not local_mode then
             for l = cell.end_line, cell.start_line + 1, -1 do
@@ -345,6 +347,14 @@ function M.render_cells(bufnr)
                 if not line_text:match("^%s*```+") and not line_text:match("^%s*~~~+") then
                     bottom_line = l
                     break
+                end
+            end
+            if bottom_line < cell.end_line then
+                for l = bottom_line + 1, cell.end_line do
+                    vim.api.nvim_buf_set_extmark(bufnr, ns_id, l, 0, {
+                        conceal_lines = "",
+                        priority = 10000,
+                    })
                 end
             end
         end
