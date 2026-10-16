@@ -156,9 +156,12 @@ function M.run_current_cell(target_line, bufnr)
     end
     
     local lines = vim.api.nvim_buf_get_lines(buf, start_line, end_line + 1, false)
-    local is_markdown = false
     if lines[1] and lines[1]:match("^# %%%% %[markdown%]") then
-        is_markdown = true
+        if not target_line then
+            vim.notify("Markdown cells are not executable.", vim.log.levels.INFO)
+        end
+        M.on_cell_execution_finished(buf)
+        return
     end
     
     -- Clear any hidden outputs so the new one takes over
@@ -176,69 +179,6 @@ function M.run_current_cell(target_line, bufnr)
     
     M.remove_output_block_after(buf, end_line)
     local output_id = M.create_output_block(buf, end_line + 1)
-    
-    if is_markdown then
-        local md_lines = {}
-        for i = 2, #lines do
-            table.insert(md_lines, lines[i])
-        end
-        
-        local raw_html = table.concat(md_lines, "\n")
-        
-        -- macOS QuickLook restricts remote network requests for security.
-        -- We must download remote images to local files first and rewrite the HTML!
-        raw_html = raw_html:gsub('src=["\'](https?://[^"\']+)["\']', function(url)
-            local ext = url:match("%.([^%.]+)$") or "png"
-            ext = ext:gsub("%?.*$", "")
-            local local_path = "/tmp/jupyter_img_" .. vim.fn.sha256(url):sub(1, 8) .. "." .. ext
-            vim.fn.system({"curl", "-s", "-o", local_path, url})
-            return 'src="' .. local_path .. '"'
-        end)
-        
-        local filename = "markdown_" .. os.time()
-        local html_path = "/tmp/" .. filename .. ".html"
-        local png_path = "/tmp/" .. filename .. ".html.png"
-        
-        -- We construct a pure HTML file with a beautiful dark mode theme
-        -- We use <pre> with a non-monospace font so the white-space is preserved 
-        -- while allowing HTML tags to render naturally!
-        local html_content = {
-            "<html><body style='background: #1e1e2e; color: #cdd6f4; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Helvetica, Arial, sans-serif; font-size: 24px; padding: 20px;'>",
-            "<pre style='white-space: pre-wrap; font-family: inherit; margin: 0; padding: 0;'>",
-            raw_html,
-            "</pre></body></html>"
-        }
-        
-        local f = io.open(html_path, "w")
-        if f then
-            f:write(table.concat(html_content, "\n"))
-            f:close()
-        end
-        
-        -- Run the massive WebKit conversion in the background to avoid freezing Neovim
-        vim.notify("Rendering WebKit HTML to Image...", vim.log.levels.INFO)
-        
-        M.current_queue_cell_id = "markdown"
-        
-        vim.defer_fn(function()
-            -- macOS qlmanage generates a flawless HTML thumbnail using Safari's engine!
-            vim.fn.system({"qlmanage", "-t", "-s", "1200", "-o", "/tmp", html_path})
-            
-            -- Crop out the massive empty white space that qlmanage defaults to
-            vim.fn.system({"magick", png_path, "-trim", "+repage", "-resize", "120%", png_path})
-            
-            -- We inject the beautifully rendered image into the output block 
-            -- and let our `image.nvim` engine perfectly display it inline!
-            vim.schedule(function()
-                if not vim.api.nvim_buf_is_valid(buf) then return end
-                rpc.render_image_output(buf, output_id, png_path, "Markdown")
-                require("nvim_jupyter.ui").render_cells(buf)
-                M.on_cell_execution_finished(buf, "markdown")
-            end)
-        end, 10)
-        
-        return
-    end
     
     local code = table.concat(lines, "\n")
     
@@ -270,6 +210,10 @@ local hidden_ns = vim.api.nvim_create_namespace("jupyter_hidden")
 function M.toggle_output_visibility()
     local buf = vim.api.nvim_get_current_buf()
     local _, start_line, end_line = M.get_current_cell_bounds()
+    local header = vim.api.nvim_buf_get_lines(buf, start_line, start_line + 1, false)[1]
+    if header and header:match("^# %%%% %[markdown%]") then
+        return
+    end
     
     if not vim.b[buf].hidden_outputs then vim.b[buf].hidden_outputs = {} end
     
@@ -510,15 +454,19 @@ local function get_all_cells(buf)
     local cells = {}
     local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
     local current_cell_start = 0
+    local current_cell_is_code = true
     for i, line in ipairs(lines) do
         if line:match("^# %%%%") and not line:match("^# %%%% %[output%]") then
-            if i > 1 then
+            if i > 1 and current_cell_is_code then
                 table.insert(cells, current_cell_start)
             end
             current_cell_start = i - 1
+            current_cell_is_code = not line:match("^# %%%% %[markdown%]")
         end
     end
-    table.insert(cells, current_cell_start)
+    if current_cell_is_code then
+        table.insert(cells, current_cell_start)
+    end
     return cells
 end
 
@@ -620,6 +568,9 @@ end
 local function get_cursor_code_cell_start()
     local buf, start_line = M.get_current_cell_bounds()
     local header = vim.api.nvim_buf_get_lines(buf, start_line, start_line + 1, false)[1]
+    if header and header:match("^# %%%% %[markdown%]") then
+        return nil
+    end
     if not header or not header:match("^# %%%% %[output%]") then
         return buf, start_line
     end
@@ -627,6 +578,9 @@ local function get_cursor_code_cell_start()
     for line_number = start_line - 1, 0, -1 do
         local line = vim.api.nvim_buf_get_lines(buf, line_number, line_number + 1, false)[1]
         if line and line:match("^# %%%%") and not line:match("^# %%%% %[output%]") then
+            if line:match("^# %%%% %[markdown%]") then
+                return nil
+            end
             return buf, line_number
         end
     end
