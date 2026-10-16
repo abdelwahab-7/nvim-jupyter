@@ -322,6 +322,45 @@ end
 
 local extmark_hook_installed = false
 
+-- Tree-sitter can have already-created conceal extmarks when Local Mode is
+-- entered. The extmark hook only affects marks created after that transition,
+-- so remove conceal from the active cell's existing marks immediately too.
+-- Re-submit every other detail to keep syntax highlighting and decorations.
+local function clear_active_cell_conceal(bufnr, active_cell)
+    if not active_cell or not active_cell.is_markdown then return 0 end
+
+    local marks = vim.api.nvim_buf_get_extmarks(
+        bufnr,
+        -1,
+        { active_cell.start_line, 0 },
+        { active_cell.end_line, -1 },
+        { details = true }
+    )
+    local cleared = 0
+
+    for _, mark in ipairs(marks) do
+        local id, row, col, details = mark[1], mark[2], mark[3], mark[4]
+        if details and details.conceal and details.ns_id then
+            local opts = { id = id }
+            for key, value in pairs(details) do
+                if key ~= "conceal"
+                    and key ~= "conceal_lines"
+                    and key ~= "ns_id"
+                    and key ~= "invalid" then
+                    opts[key] = value
+                end
+            end
+
+            local ok = pcall(vim.api.nvim_buf_set_extmark, bufnr, details.ns_id, row, col, opts)
+            if ok then
+                cleared = cleared + 1
+            end
+        end
+    end
+
+    return cleared
+end
+
 local function install_extmark_hook()
     if extmark_hook_installed then return end
     extmark_hook_installed = true
@@ -402,7 +441,8 @@ function M.sync_conceal(bufnr, active_cell)
         key = "local:" .. active_cell_id
     end
 
-    if last_state[bufnr] ~= key then
+    local state_changed = last_state[bufnr] ~= key
+    if state_changed then
         local was_local = last_state[bufnr] and last_state[bufnr]:match("^local:") ~= nil
         last_state[bufnr] = key
 
@@ -415,7 +455,34 @@ function M.sync_conceal(bufnr, active_cell)
                 pcall(parser.parse, parser, true)
             end
         end
-        vim.cmd("redraw!")
+    end
+
+    -- Apply the cell reveal to extmarks that already existed before the mode
+    -- transition. This runs synchronously, so the source is visible on entry
+    -- without waiting for the first insert or text-change event.
+    if editing and reveal_mode == "cell" then
+        clear_active_cell_conceal(bufnr, active_cell)
+    end
+
+    vim.cmd("redraw!")
+
+    -- A parser redraw can recreate decorations after the synchronous pass.
+    -- Clean them once more on the next event-loop turn while the same cell is
+    -- still active; later parser updates are handled by install_extmark_hook.
+    if editing and reveal_mode == "cell" and state_changed then
+        vim.schedule(function()
+            if not vim.api.nvim_buf_is_valid(bufnr)
+                or not vim.b[bufnr].is_jupyter
+                or vim.b[bufnr].jupyter_state ~= "local" then
+                return
+            end
+
+            local current = vim.b[bufnr].jupyter_active_cell
+            if current and current.is_markdown then
+                clear_active_cell_conceal(bufnr, current)
+                vim.cmd("redraw!")
+            end
+        end)
     end
 end
 
