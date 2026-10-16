@@ -144,6 +144,10 @@ local function markdown_fences_balanced(lines, first, last)
             for _ in line:gmatch("\x60\x60\x60+") do
                 marker_count = marker_count + 1
             end
+        elseif line:match("^%s*~~~+") then
+            for _ in line:gmatch("~~~+") do
+                marker_count = marker_count + 1
+            end
         end
 
         if marker_count % 2 == 1 then
@@ -287,6 +291,15 @@ function M.update(bufnr, cells)
     local python_regions_changed = not same_regions(parser:included_regions(), py_regions)
     local regions_changed = markdown_regions_changed or python_regions_changed
 
+    local hl = vim.treesitter.highlighter.active[bufnr]
+    if hl then
+        -- Neovim's built-in TSHighlighter only sets _conceal_line from root tree
+        -- language ("python"), which lacks conceal_lines queries. Enable it so
+        -- on_bytes dynamically invalidates conceal marks on buffer edits instead
+        -- of leaving inverted/stale extmarks that conceal newly typed code.
+        hl._conceal_line = true
+    end
+
     -- Recreate the markdown child after a structural edit. Updating a child
     -- in place can leave its old injected Python tree alive for one parser
     -- pass, which is enough to decorate the following code-cell header.
@@ -295,6 +308,14 @@ function M.update(bufnr, cells)
         pcall(parser.remove_child, parser, "markdown")
         configured[parser] = nil
         ctx = nil
+    end
+
+    if regions_changed then
+        local hl_ns = vim.api.nvim_create_namespace("nvim.treesitter.highlighter")
+        vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+        if hl then
+            hl._conceal_checked = {}
+        end
     end
 
     local md_tree = parser:children()["markdown"]
@@ -343,6 +364,18 @@ function M.sync_conceal(bufnr, _active_cell)
     local conceallevel = local_mode and 0 or 2
     local concealcursor = local_mode and "" or "nvic"
 
+    if not local_mode then
+        -- Clear stale treesitter highlighter conceal marks so they are cleanly
+        -- regenerated at correct rows when entering Global Mode preview.
+        local hl_ns = vim.api.nvim_create_namespace("nvim.treesitter.highlighter")
+        vim.api.nvim_buf_clear_namespace(bufnr, hl_ns, 0, -1)
+        local hl = vim.treesitter.highlighter.active[bufnr]
+        if hl then
+            hl._conceal_checked = {}
+            hl._conceal_line = true
+        end
+    end
+
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
         if vim.api.nvim_get_option_value("conceallevel", { win = win }) ~= conceallevel then
             vim.api.nvim_set_option_value("conceallevel", conceallevel, { win = win })
@@ -374,6 +407,18 @@ function M.setup()
     end
 
     local group = vim.api.nvim_create_augroup("NvimJupyterMarkdown", { clear = true })
+    vim.api.nvim_create_autocmd({"BufEnter", "FileType"}, {
+        group = group,
+        pattern = "*",
+        callback = function(args)
+            if vim.b[args.buf] and vim.b[args.buf].is_jupyter then
+                local hl = vim.treesitter.highlighter.active[args.buf]
+                if hl then
+                    hl._conceal_line = true
+                end
+            end
+        end,
+    })
     vim.api.nvim_create_autocmd("BufWipeout", {
         group = group,
         callback = function(args)
