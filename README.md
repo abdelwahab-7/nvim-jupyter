@@ -67,9 +67,10 @@ require("nvim_jupyter").setup({
   markdown_source_in_local_mode = true,
 
   -- How markdown source is revealed in Local Mode:
-  --   "line" (default): line-by-line / cursorline reveal (cleanest, other lines stay pretty)
-  --   "cell": reveals raw markdown across the whole cell at once
-  markdown_reveal_mode = "line",
+  --   "line": line-by-line / cursorline reveal
+  --   "cell" (default): reveals raw markdown across the active cell
+  -- The active cell behaves like conceallevel=0 while other cells keep their preview.
+  markdown_reveal_mode = "cell",
 
   -- Keybindings (these are the defaults)
   keymaps = {

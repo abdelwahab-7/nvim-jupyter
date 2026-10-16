@@ -332,7 +332,7 @@ local function install_extmark_hook()
             if config.options.markdown_highlighting and config.options.markdown_source_in_local_mode then
                 if vim.b[buf].jupyter_state == "local" then
                     local active_cell = vim.b[buf].jupyter_active_cell
-                    local reveal_mode = config.options.markdown_reveal_mode or "line"
+                    local reveal_mode = config.options.markdown_reveal_mode or "cell"
                     if reveal_mode == "cell"
                         and active_cell
                         and active_cell.is_markdown
@@ -352,8 +352,8 @@ local last_state = {}
 --- Sync conceal settings for the notebook buffer.
 --- In Global Mode: conceallevel = 2 and concealcursor = "nvic" (pure preview look).
 --- In Local Mode inside a markdown cell:
----   "line" (default): conceallevel = 2 and concealcursor = "" (reveals raw markdown line-by-line at cursorline)
----   "cell": conceallevel = 2 with conceal removed only from the active cell
+---   "line": conceallevel = 2 and concealcursor = "" (reveals raw markdown line-by-line at cursorline)
+---   "cell" (default): conceallevel = 2 with conceal removed only from the active cell
 ---@param bufnr integer
 ---@param active_cell table|nil Cell under the cursor, from ui.parse_cells()
 function M.sync_conceal(bufnr, active_cell)
@@ -364,7 +364,7 @@ function M.sync_conceal(bufnr, active_cell)
         and active_cell.is_markdown == true
         and vim.b[bufnr].jupyter_state == "local"
 
-    local reveal_mode = config.options.markdown_reveal_mode or "line"
+    local reveal_mode = config.options.markdown_reveal_mode or "cell"
 
     for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
         if editing then
